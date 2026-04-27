@@ -5,7 +5,7 @@ struct StatisticsView: View {
     @State private var tab = 0
 
     private var host: String {
-        UserDefaults.standard.string(forKey: "pingHost") ?? "google.com"
+        UserDefaults.standard.string(forKey: DefaultsKeys.pingHost) ?? "google.com"
     }
 
     var body: some View {
@@ -100,11 +100,15 @@ struct StatisticsView: View {
 
     // MARK: - Formatting
 
+    private static let intFormatter: NumberFormatter = {
+        let f = NumberFormatter()
+        f.numberStyle = .decimal
+        f.groupingSeparator = ","
+        return f
+    }()
+
     private func formatInt(_ value: Int) -> String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .decimal
-        formatter.groupingSeparator = ","
-        return formatter.string(from: NSNumber(value: value)) ?? "\(value)"
+        Self.intFormatter.string(from: NSNumber(value: value)) ?? "\(value)"
     }
 
     private func formatPercent(_ value: Double) -> String {

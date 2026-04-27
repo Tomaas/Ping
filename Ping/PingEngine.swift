@@ -32,10 +32,7 @@ final class PingEngine {
     var recentSlowestResponse: Double {
         recentEntries.compactMap(\.latency).max() ?? 0
     }
-    private var recentEntries: [PingRecord] {
-        let cutoff = Date().addingTimeInterval(-Self.recentWindow)
-        return recentPings.filter { $0.timestamp >= cutoff }
-    }
+    private(set) var recentEntries: [PingRecord] = []
 
     // Session stats (reset on app restart or manual reset)
     var sessionPingsSent: Int = 0
@@ -71,18 +68,18 @@ final class PingEngine {
 
     init() {
         let ud = UserDefaults.standard
-        allTimePingsSent = ud.integer(forKey: "allTimePingsSent")
-        allTimeRepliesLost = ud.integer(forKey: "allTimeRepliesLost")
-        allTimeFastestResponse = ud.double(forKey: "allTimeFastestResponse")
-        allTimeSlowestResponse = ud.double(forKey: "allTimeSlowestResponse")
-        allTimeTotalLatency = ud.double(forKey: "allTimeTotalLatency")
-        allTimeSuccessCount = ud.integer(forKey: "allTimeSuccessCount")
+        allTimePingsSent = ud.integer(forKey: DefaultsKeys.allTimePingsSent)
+        allTimeRepliesLost = ud.integer(forKey: DefaultsKeys.allTimeRepliesLost)
+        allTimeFastestResponse = ud.double(forKey: DefaultsKeys.allTimeFastestResponse)
+        allTimeSlowestResponse = ud.double(forKey: DefaultsKeys.allTimeSlowestResponse)
+        allTimeTotalLatency = ud.double(forKey: DefaultsKeys.allTimeTotalLatency)
+        allTimeSuccessCount = ud.integer(forKey: DefaultsKeys.allTimeSuccessCount)
         if allTimeFastestResponse == 0 { allTimeFastestResponse = .infinity }
     }
 
     var isAlert: Bool {
-        let latThreshold = UserDefaults.standard.double(forKey: "latencyThreshold")
-        let lossThreshold = UserDefaults.standard.double(forKey: "packetLossThreshold")
+        let latThreshold = UserDefaults.standard.double(forKey: DefaultsKeys.latencyThreshold)
+        let lossThreshold = UserDefaults.standard.double(forKey: DefaultsKeys.packetLossThreshold)
         let effectiveLatThreshold = latThreshold > 0 ? latThreshold : 100
         let effectiveLossThreshold = lossThreshold > 0 ? lossThreshold : 10
         return (latency ?? .infinity) > effectiveLatThreshold || (packetLoss * 100) > effectiveLossThreshold
@@ -115,7 +112,7 @@ final class PingEngine {
         guard !isRunning else { return }
         isRunning = true
 
-        let host = UserDefaults.standard.string(forKey: "pingHost") ?? "google.com"
+        let host = UserDefaults.standard.string(forKey: DefaultsKeys.pingHost) ?? "google.com"
 
         let result: Double? = await withCheckedContinuation { continuation in
             Task.detached {
@@ -192,16 +189,17 @@ final class PingEngine {
     private func pruneRecentPings() {
         let cutoff = Date().addingTimeInterval(-Self.recentWindow)
         recentPings.removeAll { $0.timestamp < cutoff }
+        recentEntries = recentPings
     }
 
     private func persistAllTimeStats() {
         let ud = UserDefaults.standard
-        ud.set(allTimePingsSent, forKey: "allTimePingsSent")
-        ud.set(allTimeRepliesLost, forKey: "allTimeRepliesLost")
-        ud.set(allTimeFastestResponse == .infinity ? 0 : allTimeFastestResponse, forKey: "allTimeFastestResponse")
-        ud.set(allTimeSlowestResponse, forKey: "allTimeSlowestResponse")
-        ud.set(allTimeTotalLatency, forKey: "allTimeTotalLatency")
-        ud.set(allTimeSuccessCount, forKey: "allTimeSuccessCount")
+        ud.set(allTimePingsSent, forKey: DefaultsKeys.allTimePingsSent)
+        ud.set(allTimeRepliesLost, forKey: DefaultsKeys.allTimeRepliesLost)
+        ud.set(allTimeFastestResponse == .infinity ? 0 : allTimeFastestResponse, forKey: DefaultsKeys.allTimeFastestResponse)
+        ud.set(allTimeSlowestResponse, forKey: DefaultsKeys.allTimeSlowestResponse)
+        ud.set(allTimeTotalLatency, forKey: DefaultsKeys.allTimeTotalLatency)
+        ud.set(allTimeSuccessCount, forKey: DefaultsKeys.allTimeSuccessCount)
     }
 
     private func appendToBuffer(success: Bool) {

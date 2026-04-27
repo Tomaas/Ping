@@ -2,10 +2,10 @@ import SwiftUI
 import ServiceManagement
 
 struct SettingsView: View {
-    @AppStorage("pingHost") private var host = "google.com"
-    @AppStorage("launchAtLogin") private var launchAtLogin = false
-    @AppStorage("latencyThreshold") private var latencyThreshold = 100.0
-    @AppStorage("packetLossThreshold") private var packetLossThreshold = 10.0
+    @AppStorage(DefaultsKeys.pingHost) private var host = "google.com"
+    @AppStorage(DefaultsKeys.launchAtLogin) private var launchAtLogin = false
+    @AppStorage(DefaultsKeys.latencyThreshold) private var latencyThreshold = 100.0
+    @AppStorage(DefaultsKeys.packetLossThreshold) private var packetLossThreshold = 10.0
 
     var body: some View {
         Form {
