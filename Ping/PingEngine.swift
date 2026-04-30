@@ -87,7 +87,7 @@ final class PingEngine {
 
     var displayText: String {
         if let latency {
-            let latStr = latency < 10 ? String(format: "%.1f", latency) : String(Int(latency))
+            let latStr = String(Int(latency))
             let lossStr = String(Int(packetLoss * 100))
             return "\(latStr)ms (\(lossStr)%)"
         }
