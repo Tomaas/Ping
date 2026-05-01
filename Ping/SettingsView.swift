@@ -2,6 +2,7 @@ import SwiftUI
 import ServiceManagement
 
 struct SettingsView: View {
+    var speedMonitor: SpeedMonitor?
     @AppStorage(DefaultsKeys.pingHost) private var host = "google.com"
     @AppStorage(DefaultsKeys.launchAtLogin) private var launchAtLogin = false
     @AppStorage(DefaultsKeys.latencyThreshold) private var latencyThreshold = 100.0
@@ -30,6 +31,13 @@ struct SettingsView: View {
                         .textFieldStyle(.roundedBorder)
                         .frame(width: 80)
                     Text("%")
+                }
+            }
+
+            if let speedMonitor {
+                Section("Network Speed") {
+                    @Bindable var monitor = speedMonitor
+                    Toggle("Show Upload/Download Speed", isOn: $monitor.isEnabled)
                 }
             }
 

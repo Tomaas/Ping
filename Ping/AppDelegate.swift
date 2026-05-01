@@ -5,6 +5,9 @@ import SwiftUI
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
     private let engine = PingEngine()
+    private let speedMonitor = SpeedMonitor()
+    private var speedStatusItem: NSStatusItem!
+    private var speedView: StatusBarView!
     private var settingsPopover: NSPopover!
     private var statsPopover: NSPopover!
 
@@ -15,17 +18,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         settingsPopover = NSPopover()
-        settingsPopover.contentViewController = NSHostingController(rootView: SettingsView())
+        settingsPopover.contentViewController = NSHostingController(rootView: SettingsView(speedMonitor: speedMonitor))
         settingsPopover.behavior = .transient
 
         statsPopover = NSPopover()
         statsPopover.contentViewController = NSHostingController(rootView: StatisticsView(engine: engine))
         statsPopover.behavior = .transient
 
+        speedStatusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        speedView = StatusBarView()
+        if let button = speedStatusItem.button {
+            speedView.translatesAutoresizingMaskIntoConstraints = false
+            button.addSubview(speedView)
+            NSLayoutConstraint.activate([
+                speedView.leadingAnchor.constraint(equalTo: button.leadingAnchor),
+                speedView.trailingAnchor.constraint(equalTo: button.trailingAnchor),
+                speedView.topAnchor.constraint(equalTo: button.topAnchor),
+                speedView.bottomAnchor.constraint(equalTo: button.bottomAnchor),
+            ])
+        }
+
         buildMenu()
         updateStatusItem()
+        updateSpeedItem()
         startObserving()
         engine.start()
+        if speedMonitor.isEnabled { speedMonitor.start() }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -34,15 +52,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         engine.stop()
+        speedMonitor.stop()
     }
 
     private func startObserving() {
         withObservationTracking {
             _ = engine.displayText
             _ = engine.isAlert
+            _ = speedMonitor.uploadDisplay
+            _ = speedMonitor.downloadDisplay
+            _ = speedMonitor.isEnabled
         } onChange: { [weak self] in
             Task { @MainActor in
                 self?.updateStatusItem()
+                self?.updateSpeedItem()
                 self?.startObserving()
             }
         }
@@ -54,6 +77,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             button.title = "🔴 \(engine.displayText)"
         } else {
             button.title = engine.displayText
+        }
+    }
+
+    private func updateSpeedItem() {
+        speedStatusItem.isVisible = speedMonitor.isEnabled
+        if speedMonitor.isEnabled {
+            speedView.update(upload: speedMonitor.uploadDisplay, download: speedMonitor.downloadDisplay)
         }
     }
 
