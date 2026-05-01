@@ -11,4 +11,5 @@ enum DefaultsKeys {
     static let allTimeSlowestResponse = "allTimeSlowestResponse"
     static let allTimeTotalLatency = "allTimeTotalLatency"
     static let allTimeSuccessCount = "allTimeSuccessCount"
+    static let showSpeed = "showSpeed"
 }
