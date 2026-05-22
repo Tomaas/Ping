@@ -26,11 +26,32 @@ A macOS menu bar app that shows your network latency and packet loss at a glance
   └─────────────────┘
 ```
 
-## Build
+## Install
+
+Download the latest release and unzip to `/Applications`:
+
+```bash
+curl -L https://github.com/Tomaas/Ping/releases/latest/download/Ping.zip -o /tmp/Ping.zip && unzip -o /tmp/Ping.zip -d /Applications
+```
+
+Or grab `Ping.zip` from the [Releases](https://github.com/Tomaas/Ping/releases) page.
+
+## Build from source
 
 Open `Ping.xcodeproj` in Xcode and run (⌘R). Requires macOS 14+.
 
 The app runs as a menu bar item with no dock icon.
+
+## Release
+
+Push a version tag to create a new GitHub Release automatically:
+
+```bash
+git tag v1.x.x
+git push origin v1.x.x
+```
+
+A GitHub Actions workflow builds the app and uploads `Ping.zip` to the release.
 
 ## How it works
 
