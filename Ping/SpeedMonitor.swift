@@ -151,7 +151,7 @@ final class SpeedMonitor {
     nonisolated static func formatSpeed(_ bytesPerSecond: Double) -> String {
         if bytesPerSecond < 1 { return "0 B/s" }
         if bytesPerSecond < 1000 { return "\(Int(bytesPerSecond)) B/s" }
-        if bytesPerSecond < 1_000_000 { return String(format: "%.1f KB/s", bytesPerSecond / 1000) }
+        if bytesPerSecond < 1_000_000 { return "\(Int(bytesPerSecond / 1000)) KB/s" }
         if bytesPerSecond < 1_000_000_000 { return String(format: "%.1f MB/s", bytesPerSecond / 1_000_000) }
         return String(format: "%.1f GB/s", bytesPerSecond / 1_000_000_000)
     }

@@ -22,11 +22,11 @@ struct SpeedMonitorTests {
     }
 
     @Test func formatSpeed_kilobytes() {
-        #expect(SpeedMonitor.formatSpeed(1000) == "1.0 KB/s")
+        #expect(SpeedMonitor.formatSpeed(1000) == "1 KB/s")
     }
 
-    @Test func formatSpeed_kilobytesDecimal() {
-        #expect(SpeedMonitor.formatSpeed(1500) == "1.5 KB/s")
+    @Test func formatSpeed_kilobytesRounded() {
+        #expect(SpeedMonitor.formatSpeed(1500) == "1 KB/s")
     }
 
     @Test func formatSpeed_megabytes() {
