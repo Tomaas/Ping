@@ -51,6 +51,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        engine.flush()
         engine.stop()
         speedMonitor.stop()
     }
@@ -59,6 +60,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         withObservationTracking {
             _ = engine.displayText
             _ = engine.isAlert
+            _ = engine.isOffline
             _ = speedMonitor.uploadDisplay
             _ = speedMonitor.downloadDisplay
             _ = speedMonitor.isEnabled

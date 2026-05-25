@@ -1,4 +1,5 @@
 import Foundation
+import Network
 
 @Observable
 @MainActor
@@ -8,6 +9,12 @@ final class PingEngine {
     private var buffer: [Bool] = []
     private var isRunning = false
     private var loopTask: Task<Void, Never>?
+    private var currentProcess: Process?
+    private(set) var consecutiveFailures: Int = 0
+    private var alertActive = false
+    var isOffline = false
+    private var pathMonitor: NWPathMonitor?
+    private var persistCounter = 0
 
     struct PingRecord {
         let timestamp: Date
@@ -32,7 +39,14 @@ final class PingEngine {
     var recentSlowestResponse: Double {
         recentEntries.compactMap(\.latency).max() ?? 0
     }
-    private(set) var recentEntries: [PingRecord] = []
+    var recentJitter: Double {
+        let latencies = recentEntries.compactMap(\.latency)
+        guard latencies.count > 1 else { return 0 }
+        let mean = latencies.reduce(0, +) / Double(latencies.count)
+        let variance = latencies.reduce(0) { $0 + ($1 - mean) * ($1 - mean) } / Double(latencies.count)
+        return variance.squareRoot()
+    }
+    var recentEntries: [PingRecord] = []
 
     // Session stats (reset on app restart or manual reset)
     var sessionPingsSent: Int = 0
@@ -77,27 +91,38 @@ final class PingEngine {
         if allTimeFastestResponse == 0 { allTimeFastestResponse = .infinity }
     }
 
-    var isAlert: Bool {
-        let latThreshold = UserDefaults.standard.double(forKey: DefaultsKeys.latencyThreshold)
-        let lossThreshold = UserDefaults.standard.double(forKey: DefaultsKeys.packetLossThreshold)
-        let effectiveLatThreshold = latThreshold > 0 ? latThreshold : 100
-        let effectiveLossThreshold = lossThreshold > 0 ? lossThreshold : 10
-        return (latency ?? .infinity) > effectiveLatThreshold || (packetLoss * 100) > effectiveLossThreshold
+    var isAlert: Bool { alertActive }
+
+    private static let hysteresisThreshold = 3
+
+    func updateAlertState(success: Bool) {
+        if !success {
+            consecutiveFailures += 1
+            if consecutiveFailures >= Self.hysteresisThreshold { alertActive = true }
+        } else {
+            consecutiveFailures = 0
+            alertActive = false
+        }
     }
 
     var displayText: String {
+        if isOffline { return "Offline" }
         if let latency {
             let latStr = String(Int(latency))
             let lossStr = String(Int(packetLoss * 100))
             return "\(latStr)ms (\(lossStr)%)"
         }
-        return "...ms (0%)"
+        return "...ms (\(Int(packetLoss * 100))%)"
     }
 
     func start() {
+        guard loopTask == nil else { return }
+        startPathMonitor()
         loopTask = Task {
             while !Task.isCancelled {
-                await executePing()
+                if !isOffline {
+                    await executePing()
+                }
                 try? await Task.sleep(nanoseconds: 1_000_000_000)
             }
         }
@@ -106,6 +131,21 @@ final class PingEngine {
     func stop() {
         loopTask?.cancel()
         loopTask = nil
+        if let p = currentProcess, p.isRunning { p.terminate() }
+        currentProcess = nil
+        pathMonitor?.cancel()
+        pathMonitor = nil
+    }
+
+    private func startPathMonitor() {
+        let monitor = NWPathMonitor()
+        monitor.pathUpdateHandler = { [weak self] path in
+            Task { @MainActor in
+                self?.isOffline = path.status != .satisfied
+            }
+        }
+        monitor.start(queue: DispatchQueue(label: "ping.pathmonitor"))
+        pathMonitor = monitor
     }
 
     private func executePing() async {
@@ -114,9 +154,11 @@ final class PingEngine {
 
         let host = UserDefaults.standard.string(forKey: DefaultsKeys.pingHost) ?? "google.com"
 
+        let process = Process()
+        currentProcess = process
+
         let result: Double? = await withCheckedContinuation { continuation in
             Task.detached {
-                let process = Process()
                 process.executableURL = URL(fileURLWithPath: "/sbin/ping")
                 process.arguments = ["-c", "1", "-W", "1000", host]
 
@@ -145,6 +187,8 @@ final class PingEngine {
             }
         }
 
+        currentProcess = nil
+
         sessionPingsSent += 1
         allTimePingsSent += 1
         recentPings.append(PingRecord(timestamp: Date(), latency: result))
@@ -153,19 +197,25 @@ final class PingEngine {
         if let result {
             latency = result
             appendToBuffer(success: true)
+            updateAlertState(success: true)
             recordLatency(result)
         } else {
             latency = nil
             appendToBuffer(success: false)
+            updateAlertState(success: false)
             sessionRepliesLost += 1
             allTimeRepliesLost += 1
         }
 
-        persistAllTimeStats()
+        persistCounter += 1
+        if persistCounter >= 30 {
+            persistAllTimeStats()
+            persistCounter = 0
+        }
         isRunning = false
     }
 
-    private func recordLatency(_ ms: Double) {
+    func recordLatency(_ ms: Double) {
         sessionTotalLatency += ms
         sessionSuccessCount += 1
         if ms < sessionFastestResponse { sessionFastestResponse = ms }
@@ -192,6 +242,10 @@ final class PingEngine {
         recentEntries = recentPings
     }
 
+    func flush() {
+        persistAllTimeStats()
+    }
+
     private func persistAllTimeStats() {
         let ud = UserDefaults.standard
         ud.set(allTimePingsSent, forKey: DefaultsKeys.allTimePingsSent)
@@ -202,17 +256,19 @@ final class PingEngine {
         ud.set(allTimeSuccessCount, forKey: DefaultsKeys.allTimeSuccessCount)
     }
 
-    private func appendToBuffer(success: Bool) {
+    func appendToBuffer(success: Bool) {
         buffer.append(success)
-        if buffer.count > 10 {
+        if buffer.count > 30 {
             buffer.removeFirst()
         }
         packetLoss = buffer.isEmpty ? 0 : Double(buffer.filter { !$0 }.count) / Double(buffer.count)
     }
 
+    // swiftlint:disable:next force_try
+    private nonisolated static let latencyRegex = try! NSRegularExpression(pattern: #"time=(\d+\.?\d*)\s*ms"#)
+
     nonisolated static func parseLatency(from output: String) -> Double? {
-        guard let regex = try? NSRegularExpression(pattern: #"time=(\d+\.?\d*)\s*ms"#),
-              let match = regex.firstMatch(in: output, range: NSRange(output.startIndex..., in: output)),
+        guard let match = latencyRegex.firstMatch(in: output, range: NSRange(output.startIndex..., in: output)),
               let range = Range(match.range(at: 1), in: output) else {
             return nil
         }

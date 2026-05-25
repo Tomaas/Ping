@@ -27,6 +27,9 @@ struct StatisticsView: View {
                 statRow("Average Response (ms)", value: formatMs(avg))
                 statRow("Fastest Response (ms)", value: formatMs(fastest))
                 statRow("Slowest Response (ms)", value: formatMs(slowest))
+                if tab == 0 {
+                    statRow("Jitter (ms)", value: formatMs(engine.recentJitter))
+                }
             }
             .padding(.vertical, 4)
 
